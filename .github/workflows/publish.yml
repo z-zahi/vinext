@@ -82,3 +82,13 @@ jobs:
         run: |
           git tag "v${{ steps.version.outputs.version }}"
           git push origin "v${{ steps.version.outputs.version }}"
+
+      - name: Notify Google Chat
+        if: success()
+        env:
+          GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+        run: |
+          VERSION="v${{ steps.version.outputs.version }}"
+          curl -sf -X POST "$GOOGLE_CHAT_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg text "vinext@${VERSION} published to npm: https://www.npmjs.com/package/vinext/v/${VERSION#v}" '{text: $text}')"
