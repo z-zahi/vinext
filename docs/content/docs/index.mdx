@@ -1,0 +1,64 @@
+---
+title: Introduction
+description: vinext — the Next.js API surface, reimplemented on Vite
+---
+
+**vinext** is a Vite plugin that reimplements the Next.js API surface — routing, server rendering, `next/*` module imports, the CLI — so you can run Next.js applications on Vite and deploy them to [Cloudflare Workers](https://workers.cloudflare.com/).
+
+> Read the announcement: [How we rebuilt Next.js with AI in one week](https://blog.cloudflare.com/vinext/)
+
+> 🚧 **Experimental — under heavy development.** The vast majority of the code was written by AI (Claude Code). Humans direct architecture, priorities, and design decisions. There will be bugs, rough edges, and things that don't work. Use at your own risk.
+
+## Why vinext?
+
+Vite has become the default build tool for modern web frameworks — fast HMR, a clean plugin API, native ESM, and a growing ecosystem. With [`@vitejs/plugin-rsc`](https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-rsc) adding React Server Components support, it's now possible to build a full RSC framework on Vite.
+
+vinext is an experiment: can we reimplement the Next.js API surface on Vite? The answer, so far, is mostly yes — about **94% of the API surface works**. Your existing `pages/`, `app/`, `next.config.js`, and `public/` directories work as-is.
+
+The current deployment target is **Cloudflare Workers** — zero cold starts, global by default, integrated platform (KV, R2, D1, AI). The `vinext deploy` command handles the full build-and-deploy pipeline.
+
+## Design principles
+
+- **Start with Cloudflare, expand later.** Workers is the current deployment target. Every feature is built and tested for Workers.
+- **Pragmatic compatibility, not bug-for-bug parity.** Targets 95%+ of real-world Next.js apps. Edge cases that depend on undocumented Vercel behavior are intentionally not supported.
+- **Latest Next.js only.** Targets Next.js 16.x. No support for deprecated APIs from older versions.
+- **Incremental adoption.** Drop in the plugin, fix what breaks, deploy.
+
+## Alternatives
+
+- **[OpenNext](https://opennext.js.org/)** — adapts `next build` output for AWS, Cloudflare, and other platforms. More mature and battle-tested.
+- **[Next.js self-hosting](https://nextjs.org/docs/app/building-your-application/deploying#self-hosting)** — deploy to any Node.js server, Docker container, or as a static export.
+
+## Architecture
+
+vinext is a Vite plugin that:
+
+1. **Resolves all `next/*` imports** to local shim modules that reimplement the Next.js API using standard Web APIs and React primitives
+2. **Scans your `pages/` and `app/` directories** to build a file-system router matching Next.js conventions
+3. **Generates virtual entry modules** for the RSC, SSR, and browser environments that handle request routing, component rendering, and client hydration
+4. **Integrates with `@vitejs/plugin-rsc`** for React Server Components — handling `"use client"` / `"use server"` directives, RSC stream serialization, and multi-environment builds
+
+## Live examples
+
+| Example | Description | URL |
+|---------|-------------|-----|
+| App Router Playground | [Vercel's Next.js App Router Playground](https://github.com/vercel/next-app-router-playground) running on vinext | [app-router-playground.vinext.workers.dev](https://app-router-playground.vinext.workers.dev) |
+| Hacker News | HN clone (App Router, RSC) | [hackernews.vinext.workers.dev](https://hackernews.vinext.workers.dev) |
+| Nextra Docs | Nextra docs site (MDX, App Router) | [nextra-docs-template.vinext.workers.dev](https://nextra-docs-template.vinext.workers.dev) |
+
+## FAQ
+
+**Is this a fork of Next.js?**
+No. vinext is an alternative implementation of the Next.js API surface built on Vite. The goal is not to create a competing framework — it's an experiment in how far AI-driven development and Vite's toolchain can go.
+
+**How is this different from OpenNext?**
+[OpenNext](https://opennext.js.org/) adapts the *output* of a standard `next build` to run on various platforms. vinext replaces the build entirely — it reimplements the Next.js APIs on Vite from scratch.
+
+**Can I use this in production?**
+You can, with caution. This is experimental software with known bugs. It works well enough for demos and exploration, but it hasn't been battle-tested with real production traffic.
+
+**Does this support App Router, Pages Router, or both?**
+Both. File-system routing, SSR, client hydration, and deployment to Cloudflare Workers work for both routers.
+
+**Can I deploy to AWS/Netlify/other platforms?**
+Currently only Cloudflare Workers is supported and tested.

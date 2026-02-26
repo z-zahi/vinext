@@ -1,0 +1,129 @@
+---
+title: Cloudflare
+description: Deploy to Cloudflare Workers
+---
+
+## Quick deploy
+
+The simplest path is `vinext deploy` — it auto-generates `wrangler.jsonc`, worker entry, and Vite config if they don't exist, builds the application, and deploys to Workers.
+
+```bash
+vinext deploy
+vinext deploy --env staging
+vinext deploy --preview
+```
+
+The deploy command also auto-detects and fixes common migration issues:
+- Adds `"type": "module"` to `package.json` if missing
+- Resolves tsconfig path aliases automatically
+- Detects MDX usage and configures `@mdx-js/rollup`
+- Renames CJS config files to `.cjs` when needed
+- Auto-stubs native Node.js modules (sharp, satori, lightningcss) for Workers
+
+## Vite config
+
+For Cloudflare Workers deployment with the App Router, you need explicit RSC plugin configuration:
+
+```ts title="vite.config.ts"
+import { defineConfig } from "vite";
+import vinext from "vinext";
+import rsc from "@vitejs/plugin-rsc";
+import { cloudflare } from "@cloudflare/vite-plugin";
+
+export default defineConfig({
+  plugins: [
+    vinext(),
+    rsc({
+      entries: {
+        rsc: "virtual:vinext-rsc-entry",
+        ssr: "virtual:vinext-app-ssr-entry",
+        client: "virtual:vinext-app-browser-entry",
+      },
+    }),
+    cloudflare({
+      viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
+    }),
+  ],
+});
+```
+
+Pages Router is simpler:
+
+```ts title="vite.config.ts"
+import { defineConfig } from "vite";
+import vinext from "vinext";
+import { cloudflare } from "@cloudflare/vite-plugin";
+
+export default defineConfig({
+  plugins: [vinext(), cloudflare()],
+});
+```
+
+## wrangler.jsonc
+
+Minimal config:
+
+```jsonc title="wrangler.jsonc"
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "my-app",
+  "compatibility_date": "2026-02-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "vinext/server/app-router-entry",
+  "assets": {
+    "not_found_handling": "none"
+  }
+}
+```
+
+For custom worker entries (e.g. adding KV cache, image optimization):
+
+```jsonc title="wrangler.jsonc"
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "my-app",
+  "compatibility_date": "2026-02-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "./worker/index.ts",
+  "assets": {
+    "not_found_handling": "none",
+    "binding": "ASSETS"
+  },
+  "images": { "binding": "IMAGES" }
+}
+```
+
+## ISR with KV cache
+
+The default `MemoryCacheHandler` doesn't persist across Worker invocations. For production ISR, use the built-in KV cache handler:
+
+```ts
+import { KVCacheHandler } from "vinext/cloudflare";
+import { setCacheHandler } from "next/cache";
+
+setCacheHandler(new KVCacheHandler(env.MY_KV_NAMESPACE));
+```
+
+## Traffic-aware Pre-Rendering (experimental)
+
+TPR queries Cloudflare zone analytics at deploy time to find which pages actually get traffic, pre-renders only those, and uploads them to KV cache. SSG-level latency for popular pages without pre-rendering your entire site.
+
+```bash
+vinext deploy --experimental-tpr                    # 90% traffic coverage
+vinext deploy --experimental-tpr --tpr-coverage 95  # More aggressive
+vinext deploy --experimental-tpr --tpr-limit 500    # Cap at 500 pages
+vinext deploy --experimental-tpr --tpr-window 48    # Use 48h of analytics
+```
+
+Requires a custom domain (zone analytics are unavailable on `*.workers.dev`) and `CLOUDFLARE_API_TOKEN` with Zone.Analytics read permission.
+
+## Deploy options
+
+| Flag | Description |
+|------|-------------|
+| `--preview` | Deploy to preview environment |
+| `--env <name>` | Target `wrangler.jsonc` `env.<name>` |
+| `--name <name>` | Override worker name |
+| `--skip-build` | Skip build step |
+| `--dry-run` | Generate config without deploying |
+| `--experimental-tpr` | Enable Traffic-aware Pre-Rendering |

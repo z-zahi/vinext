@@ -1,0 +1,99 @@
+---
+title: Getting Started
+description: Get vinext running in under 2 minutes
+---
+
+## Agent Skill (recommended)
+
+vinext includes an [Agent Skill](https://agentskills.io/home) that handles migration for you. It works with Claude Code, OpenCode, Cursor, Codex, and dozens of other AI coding tools.
+
+```bash
+npx skills add cloudflare/vinext
+```
+
+Then open your Next.js project and tell the AI to `migrate this project to vinext`.
+
+## Quick start
+
+```bash
+npm install vinext
+```
+
+Replace `next` with `vinext` in your scripts:
+
+```json title="package.json"
+{
+  "scripts": {
+    "dev": "vinext dev",
+    "build": "vinext build",
+    "start": "vinext start"
+  }
+}
+```
+
+```bash
+vinext dev          # Development server with HMR
+vinext build        # Production build
+vinext deploy       # Build and deploy to Cloudflare Workers
+```
+
+vinext auto-detects your `app/` or `pages/` directory, loads `next.config.js`, and configures Vite automatically. No `vite.config.ts` required for basic usage.
+
+## Automated migration
+
+`vinext init` automates the full migration in one command:
+
+```bash
+npx vinext init
+```
+
+This will:
+1. Run `vinext check` to scan for compatibility issues
+2. Install `vite` (and `@vitejs/plugin-rsc` for App Router) as devDependencies
+3. Rename CJS config files (e.g. `postcss.config.js` → `.cjs`) to avoid ESM conflicts
+4. Add `"type": "module"` to `package.json`
+5. Add `dev:vinext` and `build:vinext` scripts
+6. Generate a minimal `vite.config.ts`
+
+The migration is non-destructive — your existing Next.js setup continues to work alongside vinext:
+
+```bash
+npm run dev:vinext    # vinext dev server (port 3001)
+npm run dev           # still runs Next.js
+```
+
+## Using as a Vite plugin
+
+For more control, add vinext to a `vite.config.ts`:
+
+```ts  title="vite.config.ts"
+import { defineConfig } from "vite";
+import vinext from "vinext";
+
+export default defineConfig({
+  plugins: [vinext()],
+});
+```
+
+vinext auto-registers `@vitejs/plugin-rsc` when it detects an `app/` directory.
+
+## CLI reference
+
+| Command | Description |
+|---------|-------------|
+| `vinext dev` | Start dev server with HMR |
+| `vinext build` | Production build |
+| `vinext start` | Local production server |
+| `vinext deploy` | Build and deploy to Cloudflare Workers |
+| `vinext init` | Migrate a Next.js project |
+| `vinext check` | Scan for compatibility issues |
+| `vinext lint` | Delegate to eslint/oxlint |
+
+Options: `-p / --port <port>`, `-H / --hostname <host>`, `--turbopack` (accepted, no-op).
+
+## What NOT to do
+
+- **Do not modify application code.** vinext shims all `next/*` imports automatically.
+- **Do not rewrite `next/*` imports** to `vinext/*`. Imports like `next/image`, `next/link`, `next/server` resolve automatically.
+- **Do not copy webpack/Turbopack config** into Vite config. Use Vite plugins instead.
+- **Do not remove `next.config.js`** — vinext reads it for redirects, rewrites, headers, basePath, i18n, images, and env config.
