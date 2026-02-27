@@ -1827,6 +1827,29 @@ describe("App Router next.config.js features (dev server integration)", () => {
     expect(res.status).toBe(200);
     expect(res.redirected).toBe(false);
   });
+
+  // ── Percent-encoded paths should be decoded before config matching ──
+
+  it("percent-encoded redirect path is decoded before config matching", async () => {
+    // /%6Fld-%61bout decodes to /old-about → /about (permanent redirect)
+    const res = await fetch(`${baseUrl}/%6Fld-%61bout`, { redirect: "manual" });
+    expect(res.status).toBe(308);
+    expect(res.headers.get("location")).toContain("/about");
+  });
+
+  it("percent-encoded header path is decoded before config matching", async () => {
+    // /%61bout decodes to /about → X-Page-Header: about-page
+    const res = await fetch(`${baseUrl}/%61bout`);
+    expect(res.headers.get("x-page-header")).toBe("about-page");
+  });
+
+  it("percent-encoded rewrite path is decoded before config matching", async () => {
+    // /rewrite-%61bout decodes to /rewrite-about → /about (beforeFiles rewrite)
+    const res = await fetch(`${baseUrl}/rewrite-%61bout`);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("About");
+  });
 });
 
 describe("App Router next.config.js features (generateRscEntry)", () => {
@@ -2189,6 +2212,32 @@ describe("App Router middleware with NextRequest", () => {
   it("middleware that throws returns 500 instead of bypassing", async () => {
     const res = await fetch(`${baseUrl}/middleware-throw`);
     expect(res.status).toBe(500);
+  });
+
+  it("does not leak x-middleware-next or x-middleware-rewrite headers to the client", async () => {
+    // NextResponse.next() sets x-middleware-next internally.
+    // The dev server must strip it (and all x-middleware-* headers) before
+    // sending the response to the client — they are internal routing signals.
+    const nextRes = await fetch(`${baseUrl}/about`);
+    expect(nextRes.status).toBe(200);
+    // Middleware ran (verified by the custom header it sets)
+    expect(nextRes.headers.get("x-mw-ran")).toBe("true");
+    // Internal headers must NOT be present
+    expect(nextRes.headers.get("x-middleware-next")).toBeNull();
+    expect(nextRes.headers.get("x-middleware-rewrite")).toBeNull();
+    // Check that no x-middleware-* header leaked at all
+    for (const [key] of nextRes.headers) {
+      expect(key.startsWith("x-middleware-")).toBe(false);
+    }
+
+    // NextResponse.rewrite() sets x-middleware-rewrite internally.
+    const rewriteRes = await fetch(`${baseUrl}/middleware-rewrite`);
+    expect(rewriteRes.status).toBe(200);
+    expect(rewriteRes.headers.get("x-middleware-rewrite")).toBeNull();
+    expect(rewriteRes.headers.get("x-middleware-next")).toBeNull();
+    for (const [key] of rewriteRes.headers) {
+      expect(key.startsWith("x-middleware-")).toBe(false);
+    }
   });
 });
 
